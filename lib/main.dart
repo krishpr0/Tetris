@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math';
@@ -14,7 +12,7 @@ class TetrisApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tetirs',
+      title: 'Tetris',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
@@ -172,14 +170,19 @@ class _TetrisGameState extends  State<TetrisGame> {
 
   Widget _buildGameBoard() {
     return Container(
+      width: TetrisEngine.gridWidth * 30.0,
+      height: TetrisEngine.gridHeight * 30.0,
       decoration: BoxDecoration(
         border: Border.all(color: Colors.white54, width: 2),
+        color: Colors.black,
       ),
+
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: TetrisEngine.gridWidth,
+          childAspectRatio: 1.0,
         ),
         itemCount: TetrisEngine.gridWidth * TetrisEngine.gridHeight,
         itemBuilder: (context, index) {
@@ -482,7 +485,7 @@ class TetrisEngine {
         }
       }
     }
-    return false;
+    return true;
   }
 
   void movePiece(int dx, int dy) {
@@ -683,7 +686,7 @@ class TetrisEngine {
     }
   }
 
-  int get width => shape[0]. length;
+  int get width => shape[0].length;
     int get height => shape.length;
 
     void rotate() {
