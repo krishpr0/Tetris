@@ -398,3 +398,286 @@ class _TetrisGameState extends  State<TetrisGame> {
 }
 
 
+//Tetris Game Engine
+class TetrisEngine {
+  static const int gridWidth = 10;
+  static const int gridHeight = 20;
+  static const int targetHours = 20;
+
+  List<List<TetrisCell>> grid = [];
+  Tetromino? currentPiece;
+  Tetromino? nextPiece;
+  int score = 0;
+  int level = 1;
+  int linesCleared = 0;
+  bool gameOver = false;
+  bool paused = false;
+  Duration elapsedTime = Duration.zero;
+  DateTime? lastUpdate;
+  double fallSpeed = 1.0;
+
+  static final List<TetrominoShape> shapes = [
+    TetrominoShape.I,
+    TetrominoShape.O,
+    TetrominoShape.T,
+    TetrominoShape.J,
+    TetrominoShape.L,
+    TetrominoShape.S,
+    TetrominoShape.Z,
+  ];
+
+  TetrisEngine() {
+    reset();
+  }
+
+  void reset() {
+      grid = List.generate(gridHeight, (y) => List.generate(gridWidth, (x) => TetrisCell(x, y)));
+      score = 0;
+      level = 1;
+      linesCleared = 0;
+      gameOver = false;
+      paused = false;
+      elapsedTime = Duration.zero;
+      lastUpdate = DateTime.now();
+      fallSpeed = 1.0;
+
+      nextPiece = _createRandomTetromino() {
+        final random = Random();
+        final shape = shapes[random.nextInt(shapes.length)];
+        return Tetromino(shape);
+      }
+
+      void _spawnNewPiece() {
+        currentPiece = nextPiece;
+        nextPiece = _createRandomTetromino();
+        currentPiece!.x = gridWidth ~/ 2 - currentPiece!.width ~/ 2;
+        currentPiece!.y = 0;
+
+        if (!_isVaildPosition()) {
+          gameOver = true;
+        }
+      }
+      bool _isVaildPosition() {
+          for (int y = 0; y < currentPiece!.height; y++) {
+            for (int x = 0; x < currentPiece!.width; x++) {
+              if (currentPiece!.shape[y][x] == 0) continue;
+
+              final boardX = currentPiece!.x + x;
+              final boardY = currentPiece!.y + y;
+
+              if (boardX < 0 || boardX >= gridWidth || boardY >= gridHeight) {
+                return false;
+              }
+
+              if (boardY >= 0 && grid[boardY][boardX].color != Colors.black){
+                return false;
+              }
+            }
+          }
+          return  true;
+      }
+
+      void movePiece(int dx, int dy) {
+        if (paused || gameOver) return;
+
+        currentPiece!.x += dx;
+        currentPiece!.y += dy;
+
+        if (!_isVaildPosition()) {
+          currentPiece!.x -= dx;
+          currentPiece!.y -= dy;
+
+          if (dy > 0) {
+            _lockPiece();
+            _clearLines();
+            _spawnNewPiece();
+          }
+        }
+      }
+
+      void rotatePiece() {
+        if (paused || gameOver) return;
+
+        final oldRoatation = currentPiece!.rotation;
+        currentPiece!.rotate();
+
+        if (!_isVaildPosition()) {
+          currentPiece!.rotation = oldRoatation;
+        }
+      }
+
+      void _lockPiece() {
+        for (int y = 0; y < currentPiece!.height; y++) {
+          for (int x = 0; x < currentPiece!.width; x++) {
+            if (currentPiece!.shape[y][x] == 0) continue;
+
+            final boardX = currentPiece!.x + x;
+            final boardY = currentPiece!.y + y;
+
+            if (boardY >= 0) {
+              grid[boardY][boardX].color = currentPiece!.color;
+            }
+          }
+        }
+      }
+
+
+      void _clearLines() {
+        int linesClearedThisTurn = 0;
+
+        for (int y = gridHeight - 1; y>= 0; y--) {
+          bool lineComplete = true;
+
+          for (int x = 0; x < gridWidth; x++) {
+            if (grid[y][x].color == Colors.black) {
+              lineComplete = false;
+              break;
+            }
+          }
+
+          if (lineComplete) {
+            for (int ny = y; ny > 0; ny--) {
+              for (int x = 0; x < gridWidth; x++) {
+                grid[ny][x].color = grid[ny - 1][x].color;
+              }
+            }
+
+            for (int x= 0; x < gridWidth; x++) {
+              grid[0][x].color = Colors.black;
+            }
+            linesClearedThisTurn++;
+            y++;
+          }
+        }
+
+        if (linesClearedThisTurn > 0) {
+          linesCleared += linesClearedThisTurn;
+          score += linesClearedThisTurn * linesClearedThisTurn * 100 * level;
+          level = linesCleared ~/ 10 + 1;
+          fallSpeed = 1.0 / level;
+        }
+      }
+
+      void updateTime() {
+        if (paused || gameOver) return;
+
+        final now = DateTime.now();
+        if (lastUpdate != null) {
+          elapsedTime += now.difference(lastUpdate!);
+        }
+        lastUpdate = now;
+      }
+
+      void togglePause() {
+        if (!gameOver) {
+          paused = !paused;
+          if (!paused) {
+            lastUpdate = DateTime.now();
+          }
+        }
+      }
+
+      TetrisCell getCell(int x, int y) {
+        if (currentPiece != null && !gameOver) {
+          final pieceX = x - currentPiece!.x;
+          final pieceY = y - currentPiece!.y;
+
+          if (pieceX >= 0 &&
+              pieceX < currentPiece!.width &&
+              pieceY >= 0  &&
+              pieceY < currentPiece!.height &&
+              currentPiece!.shape[pieceY][pieceX] == 1) {
+            return TetrisCell(x, y, color: currentPiece!.color);
+          }
+        }
+        return grid[y][x];
+      }
+
+      double get progress => elapsedTime.inSeconds / (targetHours * 3600);
+
+      String get formattedTime {
+        final hours = elapsedTime.inHours;
+        final minutes = elapsedTime.inMinutes.remainder(60);
+        final seconds = elapsedTime.inSeconds.remainder(60);
+        return '${hours}h ${minutes}m ${seconds}s';
+      }
+  }
+
+  class TetrisCell {
+    final int x, y;
+    Color color;
+
+    TetrisCell(this.x, this.y, {this.color = Colors.black});
+  }
+
+  enum TetrominoShape {I, O, T, J, L, S, Z}
+
+  class Tetromino {
+    TetrominoShape type;
+    int x, y;
+    int rotation = 0;
+
+    Tetromino(this.type) {
+      x = 0;
+      y = 0;
+  }
+
+  List<List<int> get shape {
+      switch (type) {
+        case TetrominoShape.I:
+          return [
+            [1, 1, 1, 1]
+        ];
+
+          case TetrominoShape.O:
+            return [
+              [1, 1], [1, 1]
+        ];
+
+            case TetrominoShpae.T:
+              return [
+                [1, 1, 1], [1, 0, 0]
+        ];
+
+              case TetrominoShape.J:
+                return [
+                  [1, 1, 1], [1, 0, 0]
+        ];
+
+                case TetrominoShape.L:
+                  return [
+                    [1, 1, 1], [0, 0, 1]
+        ];
+
+                  case TetrominoShape.S:
+                    return [
+                      [0, 1, 1], [1, 1, 0]
+        ];
+
+                    case TetrominoShape.Z:
+                      return [
+                        [1, 1, 0], [0, 1, 1]
+        ];
+      }
+    }
+
+    Color get color {
+      switch (type) {
+        case TetrominoShape.I: return Colors.cyan;
+        case TetrominoShape.O: return Colors.yellow;
+        case TetrominoShape.T: return Colors.purple;
+        case TetrominoShape.J: return Colors.blue;
+        case TetrominoShape.L: return Colors.orange;
+        case TetrominoShape.S: return Colors.green;
+        case TetrominoShape.Z: return Colors.red;
+    }
+  }
+
+  int get width => shape[0]. length;
+    int get height => shape.length;
+
+    void rotate() {
+      rotation = (rotation + 1) % 4;
+    }
+}
+
